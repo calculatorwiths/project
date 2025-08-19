@@ -16,6 +16,8 @@ const ComplaintForm: React.FC<ComplaintFormProps> = ({ onClose, onSuccess }) => 
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

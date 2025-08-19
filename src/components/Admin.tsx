@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, UserMinus, Shield, Crown, AlertCircle, Trash2, X, Mail, Phone, MessageSquare, Lock, Eye, EyeOff, Plus } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Shield, Crown, AlertCircle, Trash2, X, Mail, Phone, MessageSquare, Lock, Eye, EyeOff, Plus, Heart } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import AdminLogin from './AdminLogin';
@@ -41,12 +41,19 @@ interface AdminUser {
   can_change_password: boolean;
 }
 
+interface Donator {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 const Admin: React.FC = () => {
   const { isDarkMode } = useTheme();
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [donators, setDonators] = useState<Donator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Role assignment modal
@@ -77,6 +84,11 @@ const Admin: React.FC = () => {
   const [moderatorName, setModeratorName] = useState('');
   const [isCreatingModerator, setIsCreatingModerator] = useState(false);
 
+  // Donator management modal
+  const [showDonatorModal, setShowDonatorModal] = useState(false);
+  const [donatorName, setDonatorName] = useState('');
+  const [isAddingDonator, setIsAddingDonator] = useState(false);
+
   useEffect(() => {
     if (adminUser) {
       loadAdminData();
@@ -89,7 +101,8 @@ const Admin: React.FC = () => {
       await Promise.all([
         loadUsers(),
         loadUserRoles(),
-        loadComplaints()
+        loadComplaints(),
+        loadDonators()
       ]);
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -140,8 +153,22 @@ const Admin: React.FC = () => {
     setComplaints(data || []);
   };
 
+  const loadDonators = async () => {
+    const { data, error } = await supabase
+      .from('donators')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading donators:', error);
+      return;
+    }
+
+    setDonators(data || []);
+  };
+
   const assignRole = async () => {
-    if (!selectedUser || !user) return;
+    if (!selectedUser || !adminUser) return;
 
     try {
       const { error } = await supabase
@@ -149,7 +176,7 @@ const Admin: React.FC = () => {
         .upsert({
           user_id: selectedUser.id,
           role: newRole,
-          assigned_by: user.id
+          assigned_by: adminUser.id
         });
 
       if (error) throw error;
@@ -285,6 +312,51 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleAddDonator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!donatorName.trim()) return;
+
+    setIsAddingDonator(true);
+    try {
+      const { error } = await supabase
+        .from('donators')
+        .insert({
+          name: donatorName.trim()
+        });
+
+      if (error) throw error;
+
+      setShowDonatorModal(false);
+      setDonatorName('');
+      loadDonators();
+      alert('Donator added successfully!');
+    } catch (error) {
+      console.error('Error adding donator:', error);
+      alert('Failed to add donator. Please try again.');
+    } finally {
+      setIsAddingDonator(false);
+    }
+  };
+
+  const deleteDonator = async (donatorId: string) => {
+    if (!confirm('Are you sure you want to remove this donator?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('donators')
+        .delete()
+        .eq('id', donatorId);
+
+      if (error) throw error;
+
+      loadDonators();
+      alert('Donator removed successfully!');
+    } catch (error) {
+      console.error('Error removing donator:', error);
+      alert('Failed to remove donator. Please try again.');
+    }
+  };
+
   const getUserRole = (userId: string) => {
     const role = userRoles.find(r => r.user_id === userId);
     return role?.role || 'user';
@@ -351,6 +423,12 @@ const Admin: React.FC = () => {
               >
                 Change Password
               </button>
+              <button
+                onClick={() => setShowDonatorModal(true)}
+                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-medium transition-colors duration-200"
+              >
+                Add Donator
+              </button>
               {adminUser.role === 'admin' && (
                 <button
                   onClick={() => setShowModeratorModal(true)}
@@ -404,6 +482,16 @@ const Admin: React.FC = () => {
                   <p className={`text-2xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                     {userRoles.filter(r => r.role === 'admin').length}
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-6`}>
+              <div className="flex items-center">
+                <Heart className="w-8 h-8 text-pink-600" />
+                <div className="ml-4">
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Donators</p>
+                  <p className={`text-2xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{donators.length}</p>
                 </div>
               </div>
             </div>
@@ -488,7 +576,7 @@ const Admin: React.FC = () => {
           </div>
 
           {/* Complaints Management */}
-          <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl shadow-lg border`}>
+          <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl shadow-lg border mb-8`}>
             <div className="p-6">
               <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-6`}>
                 Complaints & Contact Messages
@@ -553,6 +641,59 @@ const Admin: React.FC = () => {
                 <div className="text-center py-12">
                   <MessageSquare className={`w-16 h-16 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'} mx-auto mb-4`} />
                   <p className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>No complaints or messages yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Donators Management */}
+          <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl shadow-lg border`}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Donators Management
+                </h2>
+                <button
+                  onClick={() => setShowDonatorModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-medium transition-colors duration-200"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Donator</span>
+                </button>
+              </div>
+
+              {donators.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {donators.map((donator) => (
+                    <div key={donator.id} className={`p-4 border rounded-lg ${isDarkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'} group`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center">
+                            <Heart className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h4 className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                              {donator.name}
+                            </h4>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {new Date(donator.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => deleteDonator(donator.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all duration-200"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Heart className={`w-16 h-16 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'} mx-auto mb-4`} />
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>No donators yet</p>
                 </div>
               )}
             </div>
@@ -870,6 +1011,61 @@ const Admin: React.FC = () => {
                     className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingModerator ? 'Creating...' : 'Create Moderator'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Donator Modal */}
+        {showDonatorModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md shadow-2xl`}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Add Donator
+                </h2>
+                <button
+                  onClick={() => setShowDonatorModal(false)}
+                  className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'} rounded-lg transition-colors duration-200`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddDonator} className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Donator Name
+                  </label>
+                  <div className="relative">
+                    <Heart className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type="text"
+                      value={donatorName}
+                      onChange={(e) => setDonatorName(e.target.value)}
+                      className={`w-full pl-10 pr-4 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Enter donator name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowDonatorModal(false)}
+                    className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'} font-medium transition-colors duration-200`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingDonator}
+                    className="px-6 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAddingDonator ? 'Adding...' : 'Add Donator'}
                   </button>
                 </div>
               </form>

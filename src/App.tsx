@@ -12,6 +12,7 @@ import Calendar from './components/Calendar';
 import GroupStudy from './components/GroupStudy';
 import StudyStatus from './components/StudyStatus';
 import Notes from './components/Notes';
+import Friends from './components/Friends';
 import Admin from './components/Admin';
 import ModeratorPanel from './components/ModeratorPanel';
 import PasswordReset from './components/PasswordReset';
@@ -39,6 +40,14 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <Calendar />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/friends" 
+        element={
+          <ProtectedRoute>
+            <Friends />
           </ProtectedRoute>
         } 
       />

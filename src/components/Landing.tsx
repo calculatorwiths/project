@@ -300,7 +300,12 @@ const Landing: React.FC = () => {
             </div>
 
             <div className="text-center mb-6">
-              <p className="text-gray-600 mb-6">Please send your donation with bKash or Nagad ❤️</p>
+              <p className="text-gray-600 mb-4">Please send your donation with bKash or Nagad ❤️</p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p className="text-yellow-800 text-sm font-medium">
+                  📝 <strong>Important:</strong> Please write your name in the reference/note when sending money so we can add you to our supporters list!
+                </p>
+              </div>
               
               <div className="bg-gradient-to-r from-pink-50 to-red-50 rounded-lg p-6 border border-pink-200">
                 <table className="w-full">
@@ -321,7 +326,7 @@ const Landing: React.FC = () => {
             <div className="text-center">
               <div className="mb-4">
                 <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-                  After donating, you can add your name to our supporters list:
+                  You can also add your name to our supporters list manually:
                 </p>
                 <DonatorForm onAdd={handleDonatorAdd} />
               </div>

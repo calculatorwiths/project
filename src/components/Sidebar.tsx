@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, BookOpen, LogOut, Heart, X, Users, Eye, Moon, Sun, FileText, AlertCircle, User, Bell, MessageCircle, Shield } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, LogOut, Heart, X, Users, Eye, Moon, Sun, FileText, AlertCircle, User, Bell, MessageCircle, Shield, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -96,6 +96,11 @@ const Sidebar: React.FC = () => {
       to: '/calendar',
       icon: Calendar,
       label: 'Calendar'
+    },
+    {
+      to: '/friends',
+      icon: UserPlus,
+      label: 'Friends'
     },
     {
       to: '/group-study',

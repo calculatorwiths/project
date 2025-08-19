@@ -122,29 +122,9 @@ const NoteForm: React.FC<NoteFormProps> = ({ note, onClose, onSave }) => {
                 <User className="w-5 h-5" />
                 <span>Individual Note</span>
               </button>
-              
-              <button
-                type="button"
-                onClick={() => setIsGroupNote(true)}
-                className={`flex items-center space-x-2 px-4 py-3 rounded-lg border transition-all duration-200 ${
-                  isGroupNote
-                    ? isDarkMode 
-                      ? 'bg-green-900 bg-opacity-20 border-green-500 text-green-400'
-                      : 'bg-green-50 border-green-500 text-green-700'
-                    : isDarkMode
-                      ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
-                      : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Users className="w-5 h-5" />
-                <span>Group Note</span>
-              </button>
             </div>
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
-              {isGroupNote 
-                ? 'Group notes are visible to all users and can be shared with study groups'
-                : 'Individual notes are private and only visible to you'
-              }
+              Individual notes are private and only visible to you
             </p>
           </div>
 

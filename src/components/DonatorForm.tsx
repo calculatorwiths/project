@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Heart, User } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface DonatorFormProps {
   onAdd: (name: string) => Promise<boolean>;
 }
 
 const DonatorForm: React.FC<DonatorFormProps> = ({ onAdd }) => {
+  const { isDarkMode } = useTheme();
   const [donatorName, setDonatorName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -29,12 +31,16 @@ const DonatorForm: React.FC<DonatorFormProps> = ({ onAdd }) => {
   return (
     <form onSubmit={handleSubmit} className="flex items-center space-x-2">
       <div className="relative flex-1">
-        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <User className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
         <input
           type="text"
           value={donatorName}
           onChange={(e) => setDonatorName(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
+          className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm ${
+            isDarkMode 
+              ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400'
+              : 'bg-white border-gray-300 text-gray-800 placeholder-gray-500'
+          }`}
           placeholder="Enter your name"
           required
         />

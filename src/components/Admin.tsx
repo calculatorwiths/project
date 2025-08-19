@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, UserMinus, Shield, Crown, AlertCircle, Trash2, X, Mail, Phone, MessageSquare } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Users, UserPlus, UserMinus, Shield, Crown, AlertCircle, Trash2, X, Mail, Phone, MessageSquare, Lock, Eye, EyeOff, Plus } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
-import Sidebar from './Sidebar';
+import AdminLogin from './AdminLogin';
 
 interface User {
   id: string;
@@ -35,14 +34,20 @@ interface Complaint {
   replied_by?: string;
 }
 
+interface AdminUser {
+  id: string;
+  name: string;
+  role: 'admin' | 'moderator';
+  can_change_password: boolean;
+}
+
 const Admin: React.FC = () => {
-  const { user } = useAuth();
   const { isDarkMode } = useTheme();
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
   
   // Role assignment modal
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -55,39 +60,28 @@ const Admin: React.FC = () => {
   const [replyMessage, setReplyMessage] = useState('');
   const [isReplying, setIsReplying] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      checkUserRole();
-    }
-  }, [user]);
+  // Password change modal
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Moderator creation modal
+  const [showModeratorModal, setShowModeratorModal] = useState(false);
+  const [moderatorId, setModeratorId] = useState('');
+  const [moderatorPassword, setModeratorPassword] = useState('');
+  const [moderatorName, setModeratorName] = useState('');
+  const [isCreatingModerator, setIsCreatingModerator] = useState(false);
 
   useEffect(() => {
-    if (currentUserRole === 'admin') {
+    if (adminUser) {
       loadAdminData();
     }
-  }, [currentUserRole]);
-
-  const checkUserRole = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        setCurrentUserRole('user');
-        return;
-      }
-
-      setCurrentUserRole(data?.role || 'user');
-    } catch (error) {
-      console.error('Error checking user role:', error);
-      setCurrentUserRole('user');
-    }
-  };
+  }, [adminUser]);
 
   const loadAdminData = async () => {
     setIsLoading(true);
@@ -189,7 +183,7 @@ const Admin: React.FC = () => {
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedComplaint || !replyMessage.trim()) return;
+    if (!selectedComplaint || !replyMessage.trim() || !adminUser) return;
 
     setIsReplying(true);
     try {
@@ -199,7 +193,7 @@ const Admin: React.FC = () => {
           status: 'resolved',
           admin_reply: replyMessage.trim(),
           replied_at: new Date().toISOString(),
-          replied_by: user?.id
+          replied_by: adminUser.id
         })
         .eq('id', selectedComplaint.id);
 
@@ -215,6 +209,79 @@ const Admin: React.FC = () => {
       alert('Failed to send reply. Please try again.');
     } finally {
       setIsReplying(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUser || !currentPassword || !newPassword || !confirmPassword) return;
+
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert('New password must be at least 6 characters long');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.rpc('change_admin_password', {
+        admin_id: adminUser.id,
+        old_password: currentPassword,
+        new_password: newPassword
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        alert('Password changed successfully!');
+        setShowPasswordModal(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        alert(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      alert('Failed to change password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleCreateModerator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUser || adminUser.role !== 'admin' || !moderatorId || !moderatorPassword || !moderatorName) return;
+
+    setIsCreatingModerator(true);
+    try {
+      const { data, error } = await supabase.rpc('create_moderator_account', {
+        admin_id: adminUser.id,
+        mod_id: moderatorId,
+        mod_password: moderatorPassword,
+        mod_name: moderatorName
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        alert('Moderator account created successfully!');
+        setShowModeratorModal(false);
+        setModeratorId('');
+        setModeratorPassword('');
+        setModeratorName('');
+      } else {
+        alert(data.error || 'Failed to create moderator account');
+      }
+    } catch (error) {
+      console.error('Error creating moderator:', error);
+      alert('Failed to create moderator account. Please try again.');
+    } finally {
+      setIsCreatingModerator(false);
     }
   };
 
@@ -245,55 +312,66 @@ const Admin: React.FC = () => {
     }
   };
 
-  if (currentUserRole !== 'admin') {
-    return (
-      <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className={`w-16 h-16 ${isDarkMode ? 'text-red-400' : 'text-red-600'} mx-auto mb-4`} />
-            <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
-              Access Denied
-            </h2>
-            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              You don't have permission to access the admin panel.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+  if (!adminUser) {
+    return <AdminLogin onLogin={setAdminUser} />;
   }
 
   if (isLoading) {
     return (
-      <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading admin panel...</p>
-          </div>
+      <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} flex items-center justify-center`}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Loading admin panel...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <Sidebar />
-      
-      <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
-              Admin Panel
-            </h1>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Manage users, roles, and system settings
-            </p>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Header */}
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Shield className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className={`text-xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                Admin Panel
+              </h1>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Welcome, {adminUser.name}
+              </p>
+            </div>
           </div>
-
+          <div className="text-center">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
+              >
+                Change Password
+              </button>
+              {adminUser.role === 'admin' && (
+                <button
+                  onClick={() => setShowModeratorModal(true)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200"
+                >
+                  Create Moderator
+                </button>
+              )}
+              <button
+                onClick={() => setAdminUser(null)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-8">
+        <div className="max-w-7xl mx-auto">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-6`}>
@@ -599,6 +677,199 @@ const Admin: React.FC = () => {
                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isReplying ? 'Sending...' : 'Send Reply'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md shadow-2xl`}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Change Password
+                </h2>
+                <button
+                  onClick={() => setShowPasswordModal(false)}
+                  className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'} rounded-lg transition-colors duration-200`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Enter current password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Enter new password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Confirm new password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'} font-medium transition-colors duration-200`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isChangingPassword ? 'Changing...' : 'Change Password'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Moderator Creation Modal */}
+        {showModeratorModal && adminUser.role === 'admin' && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md shadow-2xl`}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Create Moderator Account
+                </h2>
+                <button
+                  onClick={() => setShowModeratorModal(false)}
+                  className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'} rounded-lg transition-colors duration-200`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateModerator} className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Moderator ID
+                  </label>
+                  <input
+                    type="text"
+                    value={moderatorId}
+                    onChange={(e) => setModeratorId(e.target.value)}
+                    className={`w-full px-4 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                    placeholder="Enter moderator ID"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Moderator Name
+                  </label>
+                  <input
+                    type="text"
+                    value={moderatorName}
+                    onChange={(e) => setModeratorName(e.target.value)}
+                    className={`w-full px-4 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                    placeholder="Enter moderator name"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Initial Password
+                  </label>
+                  <input
+                    type="password"
+                    value={moderatorPassword}
+                    onChange={(e) => setModeratorPassword(e.target.value)}
+                    className={`w-full px-4 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                    placeholder="Enter initial password"
+                    required
+                  />
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+                    The moderator can change this password after first login
+                  </p>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowModeratorModal(false)}
+                    className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'} font-medium transition-colors duration-200`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingModerator}
+                    className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreatingModerator ? 'Creating...' : 'Create Moderator'}
                   </button>
                 </div>
               </form>

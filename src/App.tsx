@@ -68,6 +68,8 @@ const AppRoutes: React.FC = () => {
       />
       <Route path="/admin" element={<Admin />} />
       <Route path="/moderator" element={<ModeratorPanel />} />
+      <Route path="/admin-login" element={<Admin />} />
+      <Route path="/moderator-login" element={<ModeratorPanel />} />
     </Routes>
   );
 };

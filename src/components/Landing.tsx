@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Calendar, Clock, Target, TrendingUp, Users, Heart, X, Mail, Phone, User } from 'lucide-react';
 import { supabase, isSupabaseReady } from '../lib/supabase';
+import DonatorForm from './DonatorForm';
 
 interface Donator {
   id: string;
@@ -49,6 +50,11 @@ const Landing: React.FC = () => {
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Handle contact form submission
+    handleContactFormSubmit();
+  };
+
+  const handleContactFormSubmit = async () => {
     if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.phone.trim() || !contactForm.message.trim()) {
       setContactError('Please fill in all fields');
       return;
@@ -58,7 +64,6 @@ const Landing: React.FC = () => {
     setContactError('');
 
     try {
-      // Save contact form to complaints table
       const { error } = await supabase
         .from('complaints')
         .insert({
@@ -70,7 +75,6 @@ const Landing: React.FC = () => {
 
       if (error) throw error;
 
-      // Show success modal
       setShowContactSuccess(true);
       setContactForm({ name: '', email: '', phone: '', message: '' });
     } catch (error) {
@@ -78,6 +82,25 @@ const Landing: React.FC = () => {
       setContactError('Failed to submit message. Please try again.');
     } finally {
       setIsSubmittingContact(false);
+    }
+  };
+
+  const handleDonatorAdd = async (donatorName: string) => {
+    try {
+      const { error } = await supabase
+        .from('donators')
+        .insert({
+          name: donatorName.trim()
+        });
+
+      if (error) throw error;
+      
+      // Reload donators
+      loadDonators();
+      return true;
+    } catch (error) {
+      console.error('Error adding donator:', error);
+      return false;
     }
   };
 
@@ -296,6 +319,12 @@ const Landing: React.FC = () => {
             </div>
 
             <div className="text-center">
+              <div className="mb-4">
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
+                  After donating, you can add your name to our supporters list:
+                </p>
+                <DonatorForm onAdd={handleDonatorAdd} />
+              </div>
               <button
                 onClick={() => setShowDonationModal(false)}
                 className="px-6 py-3 bg-gradient-to-r from-pink-500 to-red-500 text-white rounded-lg font-semibold hover:from-pink-600 hover:to-red-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"

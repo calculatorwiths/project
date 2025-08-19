@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, X, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { MessageSquare, X, AlertCircle, Shield, Lock, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
-import Sidebar from './Sidebar';
+import AdminLogin from './AdminLogin';
 import { Complaint } from '../types';
 
+interface AdminUser {
+  id: string;
+  name: string;
+  role: 'admin' | 'moderator';
+  can_change_password: boolean;
+}
+
 const ModeratorPanel: React.FC = () => {
-  const { user } = useAuth();
   const { isDarkMode } = useTheme();
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -18,9 +24,21 @@ const ModeratorPanel: React.FC = () => {
   const [replyMessage, setReplyMessage] = useState('');
   const [isReplying, setIsReplying] = useState(false);
 
+  // Password change modal
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   useEffect(() => {
-    loadComplaints();
-  }, []);
+    if (adminUser) {
+      loadComplaints();
+    }
+  }, [adminUser]);
 
   const loadComplaints = async () => {
     setIsLoading(true);
@@ -41,7 +59,7 @@ const ModeratorPanel: React.FC = () => {
 
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedComplaint || !replyMessage.trim()) return;
+    if (!selectedComplaint || !replyMessage.trim() || !adminUser) return;
 
     setIsReplying(true);
     try {
@@ -51,30 +69,11 @@ const ModeratorPanel: React.FC = () => {
           status: 'resolved',
           admin_reply: replyMessage.trim(),
           replied_at: new Date().toISOString(),
-          replied_by: user?.id
+          replied_by: adminUser.id
         })
         .eq('id', selectedComplaint.id);
 
       if (error) throw error;
-
-      // Create notification for the user (if they have an account)
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', selectedComplaint.email)
-        .single();
-
-      if (userData) {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: userData.id,
-            title: 'Reply to Your Complaint',
-            message: `We have replied to your complaint: "${selectedComplaint.subject}". Check your email for the full response.`,
-            type: 'complaint_reply',
-            data: { complaint_id: selectedComplaint.id }
-          });
-      }
 
       setShowReplyModal(false);
       setSelectedComplaint(null);
@@ -89,22 +88,102 @@ const ModeratorPanel: React.FC = () => {
     }
   };
 
-  return (
-    <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <Sidebar />
-      
-      <div className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
-              Moderator Panel
-            </h1>
-            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-              Manage complaints and user support
-            </p>
-          </div>
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUser || !currentPassword || !newPassword || !confirmPassword) return;
 
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert('New password must be at least 6 characters long');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.rpc('change_admin_password', {
+        admin_id: adminUser.id,
+        old_password: currentPassword,
+        new_password: newPassword
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        alert('Password changed successfully!');
+        setShowPasswordModal(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        alert(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      alert('Failed to change password. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  if (!adminUser) {
+    return <AdminLogin onLogin={setAdminUser} />;
+  }
+
+  if (adminUser.role !== 'moderator' && adminUser.role !== 'admin') {
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} flex items-center justify-center`}>
+        <div className="text-center">
+          <AlertCircle className={`w-16 h-16 ${isDarkMode ? 'text-red-400' : 'text-red-600'} mx-auto mb-4`} />
+          <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-2`}>
+            Access Denied
+          </h2>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            You don't have permission to access the moderator panel.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Header */}
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-6 py-4`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Shield className="w-8 h-8 text-green-600" />
+            <div>
+              <h1 className={`text-xl font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                Moderator Panel
+              </h1>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Welcome, {adminUser.name}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
+            >
+              Change Password
+            </button>
+            <button
+              onClick={() => setAdminUser(null)}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-8">
+        <div className="max-w-7xl mx-auto">
           {/* Content */}
           <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl shadow-lg border`}>
             <div className="p-6">
@@ -242,6 +321,116 @@ const ModeratorPanel: React.FC = () => {
                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isReplying ? 'Sending...' : 'Send Reply'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md shadow-2xl`}>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                  Change Password
+                </h2>
+                <button
+                  onClick={() => setShowPasswordModal(false)}
+                  className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'} rounded-lg transition-colors duration-200`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Enter current password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Enter new password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className={`w-full pl-10 pr-10 py-3 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' : 'bg-gray-50 border-gray-300 text-gray-800 placeholder-gray-500'} border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200`}
+                      placeholder="Confirm new password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'} font-medium transition-colors duration-200`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isChangingPassword ? 'Changing...' : 'Change Password'}
                   </button>
                 </div>
               </form>

@@ -44,8 +44,8 @@ const Calendar: React.FC = () => {
 
   const getEventsForDay = (day: number) => {
     const dateString = getDateString(day);
-    const dayExams = exams.filter(exam => exam.date === dateString);
-    const dayTasks = tasks.filter(task => task.date === dateString);
+    const dayExams = exams?.filter(exam => exam.date === dateString) || [];
+    const dayTasks = tasks?.filter(task => task.date === dateString) || [];
     
     return { exams: dayExams, tasks: dayTasks };
   };
@@ -163,7 +163,9 @@ const Calendar: React.FC = () => {
                       {events.exams.slice(0, 2).map((exam) => (
                         <div
                           key={exam.id}
-                          className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded truncate"
+                          className={`text-xs px-2 py-1 rounded truncate ${
+                            isDarkMode ? 'bg-red-900 bg-opacity-30 text-red-300' : 'bg-red-100 text-red-700'
+                          }`}
                           title={`${exam.subject} - ${exam.time}`}
                         >
                           📝 {exam.subject}
@@ -173,11 +175,13 @@ const Calendar: React.FC = () => {
                       {events.tasks.slice(0, 2 - events.exams.length).map((task) => (
                         <div
                           key={task.id}
-                          className={`text-xs px-2 py-1 rounded truncate ${
+                          className={`text-xs px-2 py-1 rounded truncate ${isDarkMode ? (
+                            task.completed ? 'bg-green-900 bg-opacity-30 text-green-300' : 'bg-yellow-900 bg-opacity-30 text-yellow-300'
+                          ) : (
                             task.completed 
                               ? 'bg-green-100 text-green-700' 
                               : 'bg-yellow-100 text-yellow-700'
-                          }`}
+                          )}`}
                           title={task.title}
                         >
                           {task.completed ? '✅' : '📋'} {task.title}
@@ -207,19 +211,27 @@ const Calendar: React.FC = () => {
             <h3 className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-3`}>Legend</h3>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
+                <div className={`w-4 h-4 rounded border ${
+                  isDarkMode ? 'bg-red-900 bg-opacity-30 border-red-600' : 'bg-red-100 border-red-200'
+                }`}></div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Exams</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded"></div>
+                <div className={`w-4 h-4 rounded border ${
+                  isDarkMode ? 'bg-yellow-900 bg-opacity-30 border-yellow-600' : 'bg-yellow-100 border-yellow-200'
+                }`}></div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Pending Tasks</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-100 border border-green-200 rounded"></div>
+                <div className={`w-4 h-4 rounded border ${
+                  isDarkMode ? 'bg-green-900 bg-opacity-30 border-green-600' : 'bg-green-100 border-green-200'
+                }`}></div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Completed Tasks</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-50 border border-blue-200 rounded"></div>
+                <div className={`w-4 h-4 rounded border ${
+                  isDarkMode ? 'bg-blue-900 bg-opacity-30 border-blue-600' : 'bg-blue-50 border-blue-200'
+                }`}></div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Today</span>
               </div>
             </div>

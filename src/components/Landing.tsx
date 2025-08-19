@@ -56,24 +56,39 @@ const Landing: React.FC = () => {
     handleContactFormSubmit();
   };
 
-  const handleContactFormSubmit = async () => {
-    if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.phone.trim() || !contactForm.message.trim()) {
-      setContactError('Please fill in all fields');
-      return;
-    }
+const handleContactFormSubmit = async () => {
+  if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.phone.trim() || !contactForm.message.trim()) {
+    setContactError('Please fill in all fields');
+    return;
+  }
 
-    setIsSubmittingContact(true);
-    setContactError('');
+  setIsSubmittingContact(true);
+  setContactError('');
 
-    try {
-      const { error } = await supabase
-        .from('complaints')
-        .insert({
-          email: contactForm.email.trim(),
-          phone: contactForm.phone.trim(),
-          subject: `Contact Form: ${contactForm.name}`,
-          message: `Name: ${contactForm.name}\nEmail: ${contactForm.email}\nPhone: ${contactForm.phone}\n\nMessage:\n${contactForm.message}`
-        });
+  try {
+    const { error } = await supabase
+      .from('complaints')       // <-- ensure it goes into the complaints table
+      .insert({
+        email: contactForm.email.trim(),
+        phone: contactForm.phone.trim(),
+        subject: `Contact Form: ${contactForm.name}`,  // easy to identify in panel
+        message: contactForm.message.trim(),
+        status: 'pending',        // <-- this makes it show in Moderator/Admin panel
+        created_at: new Date().toISOString() // <-- needed for sorting
+      });
+
+    if (error) throw error;
+
+    setShowContactSuccess(true);
+    setContactForm({ name: '', email: '', phone: '', message: '' });
+  } catch (error) {
+    console.error('Error submitting contact form:', error);
+    setContactError('Failed to submit message. Please try again.');
+  } finally {
+    setIsSubmittingContact(false);
+  }
+};
+
 
       if (error) throw error;
 

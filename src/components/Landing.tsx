@@ -26,6 +26,8 @@ const Landing: React.FC = () => {
   const [contactError, setContactError] = useState('');
   const [showContactSuccess, setShowContactSuccess] = useState(false);
 
+   const [isDarkMode, setIsDarkMode] = useState(false);
+
   useEffect(() => {
     loadDonators();
   }, []);
